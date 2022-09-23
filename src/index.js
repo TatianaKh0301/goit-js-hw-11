@@ -1,7 +1,3 @@
-// TODO: add clear need to think where else пересмотреть как при введении и поиске очищается галерея
-// TODO: check searchInput currentTarget video pagination 23min
-// TODO check ' ' field?
-
 import Notiflix from 'notiflix';
 import SimpleLightbox from "simplelightbox";
 import "simplelightbox/dist/simple-lightbox.min.css";
@@ -10,12 +6,15 @@ import axios from 'axios';
 import './css/style.css';
 
 const API_KEY = '30028288-057bf7cd6d2ddc6419712f1dc';
-const messageWrangInput = 'Sorry, there are no images matching your search query. Please try again.';
+
 let inputSearch = '';
 let page = 1;
 let per_page = 40;
 let objectArr = {};
 
+const messageEmptyInput = 'Sorry, write your search query.';
+const messageWrangInput = 'Sorry, there are no images matching your search query. Please try again.';
+const messageEndGallery = "We're sorry, but you've reached the end of search results.";
 
 const refs = {
     form: document.querySelector('.search-form'),
@@ -23,50 +22,35 @@ const refs = {
     queryBtn: document.querySelector('button[type="submit"]'),
     galleryImages: document.querySelector('.gallery'),
     loadMoreBtn: document.querySelector('.load-more'),
+    endGalleryWarning: document.querySelector('.end-gallery-wrap'),
 }
 
-const { form, queryBtn, galleryImages, searchQuery, loadMoreBtn } = refs;
+const { form, queryBtn, galleryImages, searchQuery, loadMoreBtn, endGalleryWarning } = refs;
 
 form.addEventListener('input', throttle(onInputSearch, 1000));
 form.addEventListener('submit', onSearchSubmit);
 galleryImages.addEventListener('click', onGalleryClick);
 loadMoreBtn.addEventListener('click', onLoadMore);
 
+hideLoadMoreBtn();
+
 function onInputSearch(e) {
     inputSearch = searchQuery.value.toLowerCase().trim();
-    console.log('inputSearch', inputSearch);
 }
 
 function onSearchSubmit(e) {
     e.preventDefault();
+    hideLoadMoreBtn();
     page = 1;
     clearGallery();
-    fetchImages();    
+    endGalleryClear();
+    if (inputSearch === '' || inputSearch === ' ') {
+        Notiflix.Notify.failure(messageEmptyInput);
+        return;
+    }
+    fetchImages();
+    setTimeout(() => { showLoadMoreBtn() }, 1000);    
 }
-
-// function fetchImages() {
-//     fetch(`https://pixabay.com/api/?key=${API_KEY}&q=${inputSearch}&image_type=photo&orientation=horizontal
-//             &safesearch=true&page=${page}&per_page=${per_page}`)
-//             .then(response => {
-//                 if (!response.ok || response.status === 404) {
-//                     throw new Error(response.status);
-//                 }
-//                 return response.json()
-//             })
-//             .then((data) => {
-//                 console.log('Data length', data.hits.length);
-//                 if (data.hits.length === 0) {
-//                     throw new Error();
-//                 }
-//                 renderGalleryCard(data);
-//                 page += 1;
-//                 let gallery = new SimpleLightbox('.gallery div a');
-//             })
-//             .catch(error => {
-//                 Notiflix.Notify.failure(messageWrangInput);
-//                 clearGallery();
-//             });
-// }
 
 async function fetchImages() {
     try {
@@ -74,17 +58,35 @@ async function fetchImages() {
         await axios
             .get(`https://pixabay.com/api/?key=${API_KEY}&q=${inputSearch}&image_type=photo&orientation=horizontal
             &safesearch=true&page=${page}&per_page=${per_page}`);
-    console.log("response", response);
-    console.log("response.data.hits", response.data.hits);
+
             const lengthArr = response.data.hits.length;
             if (lengthArr === 0) {
                 throw new Error();
-            }
+        }
+
+        const totalHits = response.data.totalHits;
+
+        if (page === 1) {
+            Notiflix.Notify.info(`Hooray! We found ${totalHits} images`);
+        }
+        
+        console.log("totalHits", totalHits);
             objectArr = response.data.hits;
-            renderGalleryCard(objectArr);
-            console.log("response.data.hits", objectArr);
-            page += 1;
-            let gallery = new SimpleLightbox('.gallery div a');
+        renderGalleryCard(objectArr);
+        
+            
+        let gallery = new SimpleLightbox('.gallery div a');
+        
+        const endGallery = parseInt(totalHits / per_page) + 1;
+        if (endGallery === page) {
+            hideLoadMoreBtn();
+            const endMsg =
+                `<p class = "end-gallery">${messageEndGallery}</p>`;
+            endGalleryWarning.innerHTML = endMsg;
+            Notiflix.Notify.info(messageEndGallery);
+            return;
+        }
+        page += 1;
     }
     catch(error) {
         Notiflix.Notify.failure(messageWrangInput);
@@ -129,6 +131,18 @@ function clearGallery() {
     galleryImages.innerHTML = '';
 }
 
+function endGalleryClear() {
+    endGalleryWarning.innerHTML = '';
+}
+
 function onLoadMore() {
     fetchImages();
+}
+
+function showLoadMoreBtn() {
+    loadMoreBtn.classList.remove('is-hidden');
+}
+
+function hideLoadMoreBtn() {
+    loadMoreBtn.classList.add('is-hidden');
 }
